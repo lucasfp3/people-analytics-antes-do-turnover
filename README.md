@@ -1,4 +1,4 @@
-# People Analytics Before Turnover
+# People Analytics Antes do Turnover
 
 Projeto prático de People Analytics com foco em investigação de sinais operacionais que podem anteceder o turnover voluntário.
 
