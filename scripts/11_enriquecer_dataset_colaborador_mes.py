@@ -43,6 +43,9 @@ print(f"Targets positivos: {df['target_turnover_voluntario_3m'].sum()}")
 # =========================
 # 3. ATRIBUTOS FIXOS POR COLABORADOR
 # =========================
+# Importante:
+# Não usamos tipo_desligamento, data_desligamento ou target para criar variáveis enriquecidas.
+# Isso evita vazamento temporal.
 
 colaboradores = (
     df[
@@ -51,35 +54,24 @@ colaboradores = (
             "nome_area",
             "diretoria",
             "nivel_cargo",
-            "tipo_desligamento",
             "data_admissao",
-            "data_desligamento",
         ]
     ]
     .drop_duplicates("id_colaborador")
     .copy()
 )
 
-# Fator individual sintético.
-# Como a base é fictícia, este fator ajuda a simular diferenças estruturais entre colaboradores.
 colaboradores["fator_individual_salario"] = np.random.normal(
     loc=1.0,
     scale=0.10,
-    size=len(colaboradores)
+    size=len(colaboradores),
 )
-
-# Colaboradores com desligamento voluntário recebem, em média, um fator salarial um pouco menor.
-# Isso simula uma hipótese comum em RH: remuneração relativa pode influenciar risco de saída.
-colaboradores.loc[
-    colaboradores["tipo_desligamento"] == "Voluntário",
-    "fator_individual_salario"
-] -= 0.05
 
 colaboradores["fator_individual_salario"] = colaboradores["fator_individual_salario"].clip(0.70, 1.30)
 
 
 # =========================
-# 4. TIPO DE JORNADA E ESCALA
+# 4. JORNADA E ESCALA
 # =========================
 
 def definir_tipo_jornada(row):
@@ -88,10 +80,13 @@ def definir_tipo_jornada(row):
 
     if area == "Enfermagem":
         return np.random.choice(["Plantão", "Turno"], p=[0.75, 0.25])
+
     if area in ["Atendimento", "Logística"]:
         return np.random.choice(["Turno", "Administrativa"], p=[0.70, 0.30])
+
     if nivel == "Liderança":
         return "Administrativa"
+
     return np.random.choice(["Administrativa", "Turno"], p=[0.85, 0.15])
 
 
@@ -101,10 +96,12 @@ def definir_escala(row):
 
     if jornada == "Plantão":
         return np.random.choice(["12x36", "Plantão variável"], p=[0.70, 0.30])
+
     if jornada == "Turno":
         if area in ["Atendimento", "Logística"]:
             return np.random.choice(["6x1", "5x2"], p=[0.65, 0.35])
         return np.random.choice(["6x1", "5x2"], p=[0.40, 0.60])
+
     return "5x2"
 
 
@@ -113,41 +110,35 @@ colaboradores["escala_trabalho"] = colaboradores.apply(definir_escala, axis=1)
 
 
 # =========================
-# 5. DATA SIMULADA DE ÚLTIMA PROMOÇÃO
+# 5. PROMOÇÃO SIMULADA SEM VAZAMENTO
 # =========================
 
 def gerar_meses_ate_primeira_promocao(row):
-    admissao = row["data_admissao"]
-    desligamento = row["data_desligamento"]
-    tipo_desligamento = row["tipo_desligamento"]
     nivel = row["nivel_cargo"]
-
-    if pd.isna(admissao):
-        return np.nan
+    area = row["nome_area"]
 
     if nivel in ["Liderança", "Especialista"]:
-        base = np.random.randint(18, 48)
+        base = np.random.randint(18, 54)
     elif nivel == "Técnico":
-        base = np.random.randint(12, 42)
+        base = np.random.randint(14, 48)
     else:
-        base = np.random.randint(10, 36)
+        base = np.random.randint(12, 42)
 
-    # Em colaboradores com desligamento voluntário, simulamos maior chance
-    # de promoção mais distante no tempo.
-    if tipo_desligamento == "Voluntário":
-        base += np.random.randint(6, 18)
+    # Áreas operacionais podem ter progressão um pouco mais lenta.
+    if area in ["Atendimento", "Logística", "Enfermagem"]:
+        base += np.random.randint(0, 8)
 
     return base
 
 
 colaboradores["meses_ate_promocao_simulada"] = colaboradores.apply(
     gerar_meses_ate_primeira_promocao,
-    axis=1
+    axis=1,
 )
 
 
 # =========================
-# 6. MERGE DOS ATRIBUTOS NA BASE MENSAL
+# 6. MERGE NA BASE MENSAL
 # =========================
 
 df = df.merge(
@@ -161,7 +152,7 @@ df = df.merge(
         ]
     ],
     on="id_colaborador",
-    how="left"
+    how="left",
 )
 
 
@@ -190,7 +181,6 @@ multiplicador_area = {
 df["salario_base_nivel"] = df["nivel_cargo"].map(salario_base_nivel)
 df["multiplicador_area"] = df["nome_area"].map(multiplicador_area)
 
-# Crescimento leve com tempo de casa, limitado para não explodir.
 df["fator_tempo_casa"] = (1 + (df["tempo_casa_meses"] * 0.002)).clip(1.00, 1.25)
 
 df["salario_mensal"] = (
@@ -202,7 +192,6 @@ df["salario_mensal"] = (
 
 df["salario_mensal"] = df["salario_mensal"].round(2)
 
-# Salário relativo à mediana do grupo área/cargo/mês.
 df["mediana_salario_area_cargo_mes"] = (
     df.groupby(["nome_area", "nivel_cargo", "mes_referencia"])["salario_mensal"]
     .transform("median")
@@ -229,7 +218,7 @@ df["teve_promocao_ultimos_12m"] = np.where(
     (df["meses_desde_ultima_promocao"] > 0)
     & (df["meses_desde_ultima_promocao"] <= 12),
     1,
-    0
+    0,
 )
 
 
@@ -237,7 +226,6 @@ df["teve_promocao_ultimos_12m"] = np.where(
 # 9. MUDANÇA DE GESTOR
 # =========================
 
-# Probabilidade base por área.
 prob_mudanca_gestor_area = {
     "Atendimento": 0.10,
     "Enfermagem": 0.09,
@@ -251,7 +239,6 @@ prob_mudanca_gestor_area = {
 
 df["prob_mudanca_gestor"] = df["nome_area"].map(prob_mudanca_gestor_area)
 
-# Simula maior instabilidade de gestor em meses com mais horas extras/ausência.
 df["prob_mudanca_gestor"] = (
     df["prob_mudanca_gestor"]
     + np.where(df["horas_extras_ultimos_3m"] > df["horas_extras_ultimos_3m"].median(), 0.02, 0)
@@ -260,7 +247,7 @@ df["prob_mudanca_gestor"] = (
 
 df["mudou_gestor_ultimos_6m"] = np.random.binomial(
     n=1,
-    p=df["prob_mudanca_gestor"]
+    p=df["prob_mudanca_gestor"],
 )
 
 
@@ -268,8 +255,6 @@ df["mudou_gestor_ultimos_6m"] = np.random.binomial(
 # 10. DESEMPENHO
 # =========================
 
-# Nota de desempenho sintética entre 1 e 5.
-# A ideia é simular avaliações anuais/mensais derivadas de um padrão individual.
 base_desempenho_nivel = {
     "Operacional": 3.15,
     "Técnico": 3.30,
@@ -294,12 +279,12 @@ df["faixa_desempenho"] = pd.cut(
     df["nota_desempenho"],
     bins=[0, 2.5, 3.5, 4.2, 5],
     labels=["Baixo", "Médio", "Alto", "Excelente"],
-    include_lowest=True
+    include_lowest=True,
 ).astype(str)
 
 
 # =========================
-# 11. LIMPEZA DE COLUNAS AUXILIARES
+# 11. LIMPEZA
 # =========================
 
 colunas_auxiliares = [
