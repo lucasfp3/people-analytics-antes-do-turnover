@@ -1,0 +1,9 @@
+﻿id_area,nome_area,diretoria
+1,Atendimento,Operações
+2,Enfermagem,Operações Assistenciais
+3,Comercial,Receita
+4,Financeiro,Administrativo
+5,Tecnologia,Corporativo
+6,Recursos Humanos,Corporativo
+7,Logística,Operações
+8,Faturamento,Administrativo

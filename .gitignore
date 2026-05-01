@@ -1,0 +1,35 @@
+# Ambiente virtual
+.venv/
+venv/
+env/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+.ipynb_checkpoints/
+
+# VSCode
+.vscode/
+
+# Arquivos temporários
+*.tmp
+*.log
+
+# Sistema operacional
+.DS_Store
+Thumbs.db
+
+# SQL Server / backups locais
+*.bak
+*.trn
+
+# Outputs gerados posteriormente
+outputs/charts/
+outputs/tables/
+
+# Dados processados podem ser recriados
+data/processada/
+data/processed/

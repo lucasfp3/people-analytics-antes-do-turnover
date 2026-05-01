@@ -1,0 +1,9 @@
+﻿id_cargo,nome_cargo,nivel_cargo
+1,Auxiliar,Operacional
+2,Assistente,Operacional
+3,Analista Júnior,Técnico
+4,Analista Pleno,Técnico
+5,Analista Sênior,Técnico
+6,Especialista,Especialista
+7,Coordenador,Liderança
+8,Gerente,Liderança
